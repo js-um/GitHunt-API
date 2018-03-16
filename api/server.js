@@ -9,7 +9,7 @@ import { invert, isString } from 'lodash';
 import { createServer } from 'http';
 import { SubscriptionServer } from 'subscriptions-transport-ws';
 import { execute, subscribe } from 'graphql';
-import { Engine } from 'apollo-engine';
+import { ApolloEngine } from 'apollo-engine';
 import { GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET } from './githubKeys';
 
 import { setUpGitHubLogin } from './githubLogin';
@@ -37,54 +37,6 @@ export function run({ ENGINE_API_KEY, PORT: portFromEnv = 3010 } = {}) {
       : `ws://api.githunt.com${WS_GQL_PATH}`;
 
   const app = express();
-
-  if (ENGINE_API_KEY) {
-    const engine = new Engine({
-      engineConfig: {
-        apiKey: ENGINE_API_KEY,
-        stores: [
-          {
-            name: 'publicResponseCache',
-            inMemory: {
-              cacheSize: 10485760,
-            },
-          },
-          {
-            name: 'privateResponseCache',
-            inMemory: {
-              cacheSize: 10485760,
-            },
-          },
-          {
-            name: 'pq',
-            inMemory: {
-              cacheSize: 5000000,
-            },
-          },
-        ],
-        persistedQueries: {
-          store: 'pq',
-        },
-        sessionAuth: {
-          store: 'privateResponseCache',
-          header: 'Authorization',
-        },
-        queryCache: {
-          publicFullQueryStore: 'publicResponseCache',
-          privateFullQueryStore: 'privateResponseCache',
-        },
-        reporting: {
-          debugReports: true,
-        },
-        logging: {
-          level: 'DEBUG',
-        },
-      },
-      graphqlPort: port,
-    });
-    engine.start();
-    app.use(engine.expressMiddleware());
-  }
   app.use(cors());
   app.use(bodyParser.urlencoded({ extended: true }));
   app.use(bodyParser.json());
@@ -176,10 +128,64 @@ export function run({ ENGINE_API_KEY, PORT: portFromEnv = 3010 } = {}) {
 
   const server = createServer(app);
 
-  server.listen(port, () => {
-    console.log(`API Server is now running on http://localhost:${port}`); // eslint-disable-line no-console
-    console.log(`API Server over web socket with subscriptions is now running on ws://localhost:${port}${WS_GQL_PATH}`); // eslint-disable-line no-console
-  });
+  const startupCallback = () => {
+    // eslint-disable-next-line no-console
+    console.log(`API Server is now running on http://localhost:${port}`);
+    // eslint-disable-next-line no-console
+    console.log('API Server over web socket with subscriptions is now running on ' +
+      `ws://localhost:${port}${WS_GQL_PATH}`);
+  };
+
+  if (ENGINE_API_KEY) {
+    const engine = new ApolloEngine({
+      apiKey: ENGINE_API_KEY,
+      stores: [
+        {
+          name: 'publicResponseCache',
+          inMemory: {
+            cacheSize: 10485760,
+          },
+        },
+        {
+          name: 'privateResponseCache',
+          inMemory: {
+            cacheSize: 10485760,
+          },
+        },
+        {
+          name: 'pq',
+          inMemory: {
+            cacheSize: 5000000,
+          },
+        },
+      ],
+      persistedQueries: {
+        store: 'pq',
+      },
+      sessionAuth: {
+        store: 'privateResponseCache',
+        header: 'Authorization',
+      },
+      queryCache: {
+        publicFullQueryStore: 'publicResponseCache',
+        privateFullQueryStore: 'privateResponseCache',
+      },
+      reporting: {
+        debugReports: true,
+      },
+      logging: {
+        level: 'DEBUG',
+      },
+    });
+
+    engine.listen({
+      port,
+      httpServer: server,
+    }, startupCallback);
+  } else {
+    // When Engine isn't configured, start the without the Engine wrapping.
+    server.listen(port, startupCallback);
+  }
 
   // eslint-disable-next-line
   new SubscriptionServer(
