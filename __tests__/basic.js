@@ -7,9 +7,14 @@ const testPort = 6789;
 const endpointUrl = `http://localhost:${testPort}/graphql`;
 
 let server;
-beforeAll(() => {
-  server = run({ PORT: testPort });
-});
+// beforeAll(() => {
+//   server = run({ PORT: testPort });
+// });
+
+// afterAll(() => {
+//   server.stop();
+//   server = null;
+// });
 
 // XXX what is going on with this test
 xit("accepts a query", async () => {
@@ -78,11 +83,6 @@ xit("accepts a query", async () => {
 
   console.log(result);
   // expect(result).toMatchSnapshot();
-});
-
-afterAll(() => {
-  server.close();
-  server = null;
 });
 
 function fetchGraphQL(query, variables) {
