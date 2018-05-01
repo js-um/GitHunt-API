@@ -1,3 +1,6 @@
+import NodeGeocoder from 'node-geocoder';
+import request from 'request';
+
 import { merge } from 'lodash';
 import { makeExecutableSchema } from 'graphql-tools';
 import { withFilter } from 'graphql-subscriptions';
@@ -81,6 +84,20 @@ type Subscription {
   commentAdded(repoFullName: String!): Comment
 }
 
+type Location {
+  city: String
+  country: String
+  coords: [Float]
+  mapLink: String
+  weather: Weather
+}
+
+type Weather {
+  summary: String
+  temperature: Float
+  coords: [Float]
+}
+
 schema {
   query: Query
   mutation: Mutation
@@ -89,7 +106,60 @@ schema {
 
 `];
 
+// Set the baseUrl and urlParams for Dark Sky API call
+const baseUrl = 'https://api.darksky.net/forecast/';
+const urlParams = '?units=us&exclude=minutely,hourly,daily,flags';
+const mapLinkBase = 'https://www.google.com/maps/?q=';
+const darkSkySecret = process.env.DARK_SKY_SECRET;
+const googleApiKey = process.env.SS_GOOGLE_API_KEY;
+
 const COMMENT_ADDED_TOPIC = 'commentAdded';
+
+// Geocode a place through node-geocoder and the Google Maps API
+// https://github.com/nchaulet/node-geocoder
+function getLocation(place) {
+  const options = {
+    provider: 'google',
+    apiKey: googleApiKey,
+  };
+
+  const geocoder = NodeGeocoder(options);
+
+  return new Promise((resolve, reject) => {
+    geocoder.geocode(place, (err, res) => {
+      if (err) {
+        reject(err);
+      }
+      const { city, country } = res[0];
+      const lat = res[0].latitude;
+      const lng = res[0].longitude;
+      resolve({
+        city,
+        country,
+        coords: [lat, lng],
+        mapLink: `${mapLinkBase}${lat},${lng}`,
+      });
+    });
+  });
+}
+
+// Pass the geographic coordinates of the location to the Dark Sky API to get current conditions
+function getWeather(coords) {
+  return new Promise((resolve, reject) => {
+    request(`${baseUrl}${darkSkySecret}/${coords[0]},${coords[1]}${urlParams}`, (error, response, body) => {
+      if (error) {
+        reject(error);
+      }
+      const data = JSON.parse(body);
+      const { summary, temperature } = data.currently;
+      resolve({
+        summary,
+        temperature,
+        coords,
+      });
+    });
+  });
+}
 
 const rootResolvers = {
   Query: {
@@ -184,6 +254,16 @@ const rootResolvers = {
       subscribe: withFilter(() => pubsub.asyncIterator(COMMENT_ADDED_TOPIC), (payload, args) => {
         return payload.commentAdded.repository_name === args.repoFullName;
       }),
+    },
+  },
+  User: {
+    location(root) {
+      return getLocation(root.location);
+    },
+  },
+  Location: {
+    weather(root) {
+      return getWeather(root.coords);
     },
   },
 };

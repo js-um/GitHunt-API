@@ -38,7 +38,7 @@ type User @cacheControl(maxAge:240){
   html_url: String!
 
   # the Location of this user
-  location: String
+  location: Location
 }
 `];
 
