@@ -36,6 +36,9 @@ type User @cacheControl(maxAge:240){
 
   # The URL of this user's GitHub page
   html_url: String!
+
+  # the Location of this user
+  location: String
 }
 `];
 
