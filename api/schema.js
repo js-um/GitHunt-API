@@ -128,7 +128,7 @@ function getLocation(place) {
   return new Promise((resolve, reject) => {
     geocoder.geocode(place, (err, res) => {
       if (err) {
-        reject(err);
+        return reject(err);
       }
       const { city, country } = res[0];
       const lat = res[0].latitude;
@@ -148,7 +148,7 @@ function getWeather(coords) {
   return new Promise((resolve, reject) => {
     request(`${baseUrl}${darkSkySecret}/${coords[0]},${coords[1]}${urlParams}`, (error, response, body) => {
       if (error) {
-        reject(error);
+        return reject(error);
       }
       const data = JSON.parse(body);
       const { summary, temperature } = data.currently;
